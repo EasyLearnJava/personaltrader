@@ -1,0 +1,30 @@
+{
+  "name": "ndx-options-monitor",
+  "version": "1.0.0",
+  "description": "Real-time NDX Options Monitor with Python backend and React frontend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "node server.js",
+    "install-all": "npm install && cd frontend && npm install && cd ..",
+    "postinstall": "cd frontend && npm install"
+  },
+  "keywords": [
+    "ndx",
+    "options",
+    "trading",
+    "websocket",
+    "react"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
+

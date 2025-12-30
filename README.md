@@ -1,146 +1,166 @@
-# 📊 NDX Options Monitor - Complete Solution
+# 📊 NDX Options Monitor - Render.com All-in-One
 
-A full-stack application for monitoring NDX options in real-time with a beautiful dashboard.
+Real-time NDX options monitoring with Python WebSocket backend and React dashboard - **single deployment on Render.com**.
+
+## ✨ Features
+
+- 🔄 Real-time WebSocket data streaming
+- 📊 Dynamic strike adjustment (every 10 mins)
+- 📈 Beautiful React dashboard
+- 📝 Google Sheets integration
+- 🎯 Smart reconnection (>100 point changes)
+- 🌐 Single Render.com deployment
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Complete System                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────────┐      ┌──────────────┐      ┌──────────┐ │
-│  │   Python     │      │   Google     │      │  React   │ │
-│  │   Backend    │─────▶│   Sheets     │◀─────│Dashboard │ │
-│  │  (Railway)   │      │   (Storage)  │      │ (Vercel) │ │
-│  └──────────────┘      └──────────────┘      └──────────┘ │
-│   WebSocket Data         Real-time DB         Live UI      │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+Render.com Web Service:
+├── Node.js (Port 3000) → Serves React Frontend
+└── Python Backend → WebSocket Data Collector
 ```
 
-## 🚀 Features
-
-### Backend (Python)
-- ✅ Real-time WebSocket connection to Massive.com
-- ✅ Monitors CALL and PUT options for NDX
-- ✅ Filters data by volume threshold (>20)
-- ✅ Automatically stores data in Google Sheets
-- ✅ Runs 24/7 on Railway
-- ✅ Auto-reconnection on failures
-
-### Frontend (React Dashboard)
-- ✅ Live data table with sorting and pagination
-- ✅ Auto-refresh every 5 seconds
-- ✅ Volume charts (CALL vs PUT)
-- ✅ Smart filters (type, volume, strike price)
-- ✅ Real-time statistics cards
-- ✅ Mobile-responsive design
-- ✅ Dark theme optimized for trading
+**Data Flow:** `Polygon.io → Python → Google Sheets → React Dashboard`
 
 ## 📁 Project Structure
 
 ```
-personal-trader/
-├── main.py                   # Python WebSocket client
-├── requirements.txt          # Python dependencies
-├── railway.json              # Railway deployment config
-├── Procfile                  # Process definition
-├── service_account.json      # Google credentials (not in git)
-│
-├── frontend/                 # React Dashboard
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── services/        # API services
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   ├── package.json
-│   └── vercel.json
-│
-├── DEPLOYMENT_GUIDE.md      # Complete deployment guide
-└── README.md                # This file
+├── backend/
+│   ├── main.py              # Python WebSocket client
+│   └── requirements.txt     # Python dependencies
+├── frontend/
+│   ├── src/                 # React components
+│   └── package.json         # Frontend dependencies
+├── server.js                # Express server
+├── package.json             # Root dependencies
+└── render.yaml              # Render configuration
 ```
 
-## 🎯 Quick Start
+## 🚀 Quick Deploy to Render.com
 
-### Option 1: Deploy Everything (Recommended)
+### Prerequisites
+- GitHub account
+- Render.com account (free tier available)
+- Google Cloud with Sheets API enabled
+- Service Account JSON credentials
 
-Follow the complete guide: **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**
+### Step 1: Prepare Google Sheets
 
-### Option 2: Run Locally
+1. Create Google Sheet named `Dataintab`
+2. Enable Google Sheets API in Google Cloud Console
+3. Create Service Account and download JSON
+4. Share sheet with service account email (Editor permissions)
 
-#### Backend
-```bash
-pip install -r requirements.txt
-python main.py
-```
+📖 See [GOOGLE_SHEETS_SETUP.md](GOOGLE_SHEETS_SETUP.md) for details.
 
-#### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
+### Step 2: Deploy to Render
 
-## 📊 Data Structure
+1. **Push to GitHub**
+   ```bash
+   git add .
+   git commit -m "Deploy to Render.com"
+   git push origin main
+   ```
 
-Google Sheet columns:
-- Timestamp
-- Symbol
-- Option_Type (CALL/PUT)
-- Strike_Price
-- Close_Price
-- Volume
-- Accumulated_Volume
-- High, Low, Open, VWAP
+2. **Create Render Service**
+   - Go to [render.com](https://render.com)
+   - Click **New +** → **Web Service**
+   - Connect repository: `EasyLearnJava/personaltrader`
+
+3. **Configure Service**
+   - **Name**: `ndx-options-monitor`
+   - **Runtime**: `Python 3`
+   - **Build Command**:
+     ```
+     pip install -r backend/requirements.txt && cd frontend && npm install && npm run build && cd .. && npm install
+     ```
+   - **Start Command**:
+     ```
+     node server.js
+     ```
+
+4. **Add Environment Variables**
+
+   In Render dashboard, add these environment variables:
+
+   ```
+   POLYGON_API_KEY=wsWMG2p9vhDDjVxAHSRz6qbSR_a7B1wL
+   GOOGLE_SHEET_NAME=Dataintab
+   GOOGLE_SERVICE_ACCOUNT_JSON=<paste entire JSON content>
+   ```
+
+   **Important:** Copy the entire content of your `service_account.json` file and paste as one line.
+
+5. **Deploy!**
+   - Click **Create Web Service**
+   - Wait 5-10 minutes for first deployment
+   - Access at: `https://ndx-options-monitor.onrender.com`
 
 ## 💰 Cost
 
-| Service | Monthly Cost |
-|---------|--------------|
-| Railway (Backend) | $5 |
-| Vercel (Frontend) | $0 (Free) |
-| Google Sheets | $0 (Free) |
-| **Total** | **$5/month** |
+| Service | Plan | Cost |
+|---------|------|------|
+| Render.com | Starter | $7/month |
+| Google Sheets | Free | $0 |
+| **Total** | | **$7/month** |
+
+*Free tier available but spins down after inactivity. Starter plan recommended for 24/7 operation.*
 
 ## 🔧 Configuration
 
-### Backend (`main.py`)
-- Volume threshold: >20 (line 115)
-- Strike range: ±500 points
-- Market hours: Until 3:00 PM CST
+### Environment Variables
 
-### Frontend (`.env`)
-- Auto-refresh: 5 seconds
-- Items per page: 50
-- Chart: Top 20 strikes
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `POLYGON_API_KEY` | Polygon.io API key | ✅ Yes |
+| `GOOGLE_SHEET_NAME` | Google Sheet name | ✅ Yes |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account JSON | ✅ Yes |
+
+### Backend Settings
+
+- Volume threshold: `>20`
+- Strike check: Every `10 minutes`
+- Reconnection: When strike changes `>100 points`
+- Market hours: Until `3:00 PM CST`
+
+## 📊 Dashboard Features
+
+- ✅ Live data table with sorting & pagination
+- ✅ Real-time statistics cards
+- ✅ Volume charts (CALL vs PUT)
+- ✅ Smart filters (type, volume, strike)
+- ✅ Auto-refresh every 5 seconds
+- ✅ Mobile-responsive design
+- ✅ Dark theme for trading
+
+## 🛠️ Local Development
+
+```bash
+# Install all dependencies
+npm install
+cd frontend && npm install && cd ..
+pip install -r backend/requirements.txt
+
+# Start server (runs both frontend and backend)
+npm start
+```
+
+Access at: `http://localhost:3000`
+
+## 🔍 Monitoring
+
+View logs in Render dashboard to see:
+- Python backend startup
+- WebSocket connections
+- Data collection
+- Strike adjustments
 
 ## 🛠️ Tech Stack
 
-### Backend
-- Python 3.11
-- Massive.com WebSocket API
-- Google Sheets API
-- gspread
-
-### Frontend
-- React 18
-- Vite
-- Recharts
-- Google Sheets API
+- **Backend**: Python 3.11, Polygon.io API, Google Sheets API
+- **Frontend**: React 18, Vite, Recharts
+- **Server**: Node.js 18, Express.js
+- **Deployment**: Render.com
 
 ## 📝 License
 
 ISC
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
-## 📞 Support
-
-For deployment help, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)

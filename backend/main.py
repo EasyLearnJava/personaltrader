@@ -9,11 +9,11 @@ import time
 import pytz
 import requests
 import threading
+import json
 
 # Configuration
-POLYGON_API_KEY = "wsWMG2p9vhDDjVxAHSRz6qbSR_a7B1wL"
-GOOGLE_SHEET_NAME = "Dataintab"
-CREDENTIALS_FILE = "service_account.json"
+POLYGON_API_KEY = os.getenv('POLYGON_API_KEY', 'wsWMG2p9vhDDjVxAHSRz6qbSR_a7B1wL')
+GOOGLE_SHEET_NAME = os.getenv('GOOGLE_SHEET_NAME', 'Dataintab')
 
 # Global variables for dynamic strike management
 current_strike = None
@@ -24,13 +24,24 @@ websocket_running = False
 # Initialize Google Sheets client
 def init_google_sheets():
     try:
-        if not os.path.exists(CREDENTIALS_FILE):
-            print(f"❌ {CREDENTIALS_FILE} not found. Please follow GOOGLE_SHEETS_SETUP.md")
+        # Try to get credentials from environment variable first
+        creds_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+        
+        if creds_json:
+            # Parse JSON from environment variable
+            creds_dict = json.loads(creds_json)
+            scope = ['https://spreadsheets.google.com/feeds',
+                     'https://www.googleapis.com/auth/drive']
+            credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        elif os.path.exists('service_account.json'):
+            # Fallback to file
+            scope = ['https://spreadsheets.google.com/feeds',
+                     'https://www.googleapis.com/auth/drive']
+            credentials = Credentials.from_service_account_file('service_account.json', scopes=scope)
+        else:
+            print(f"❌ No Google credentials found. Set GOOGLE_SERVICE_ACCOUNT_JSON env var")
             return None
 
-        scope = ['https://spreadsheets.google.com/feeds',
-                 'https://www.googleapis.com/auth/drive']
-        credentials = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=scope)
         gc = gspread.authorize(credentials)
         sheet = gc.open(GOOGLE_SHEET_NAME).sheet1
 
@@ -59,6 +70,17 @@ client = None
 message_count = 0
 last_message_time = None
 
+def write_to_sheet(data_row):
+    global google_sheet
+    if google_sheet:
+        try:
+            google_sheet.append_row(data_row)
+            return True
+        except Exception as e:
+            print(f"❌ Error writing to sheet: {e}")
+            return False
+    return False
+
 def get_current_ndx_price():
     """
     Fetch current NDX index price from Polygon.io
@@ -67,7 +89,7 @@ def get_current_ndx_price():
     try:
         url = f"https://api.polygon.io/v2/aggs/ticker/I:NDX/prev?apiKey={POLYGON_API_KEY}"
         response = requests.get(url, timeout=10)
-
+        
         if response.status_code == 200:
             data = response.json()
             if 'results' in data and len(data['results']) > 0:
@@ -79,7 +101,7 @@ def get_current_ndx_price():
             print(f"⚠️ Polygon API returned status {response.status_code}")
     except Exception as e:
         print(f"⚠️ Error fetching NDX price: {e}")
-
+    
     # Fallback to default
     default_strike = 25650
     print(f"⚠️ Using fallback strike: ${default_strike:,}")
@@ -91,21 +113,21 @@ def check_strike_and_reconnect():
     Triggers reconnection if strike changes by more than 100 points
     """
     global current_strike, last_strike, reconnect_flag, websocket_running
-
+    
     while websocket_running:
         time.sleep(600)  # Wait 10 minutes (600 seconds)
-
+        
         if not websocket_running:
             break
-
+            
         new_strike = get_current_ndx_price()
         strike_change = abs(new_strike - current_strike)
-
+        
         print(f"\n🔍 10-Minute Strike Check:")
         print(f"   Current Strike: ${current_strike:,}")
         print(f"   New Strike: ${new_strike:,}")
         print(f"   Change: ${strike_change:,}")
-
+        
         if strike_change > 100:
             print(f"⚠️ Strike changed by >{100} points! Triggering reconnection...")
             current_strike = new_strike
@@ -124,17 +146,6 @@ def initialize_websocket_client():
         market=Market.Options
     )
     return client
-
-def write_to_sheet(data_row):
-    global google_sheet
-    if google_sheet:
-        try:
-            google_sheet.append_row(data_row)
-            return True
-        except Exception as e:
-            print(f"❌ Error writing to sheet: {e}")
-            return False
-    return False
 
 def handle_msg(msgs: List[WebSocketMessage]):
     global message_count, last_message_time
@@ -369,18 +380,20 @@ def run_websocket_client():
     websocket_running = False
     print(f"\n✅ WebSocket client stopped")
 
-# Main execution
-print("\n🎯 Starting NDX Options Monitor with Dynamic Strike Adjustment...")
-print("📊 Volume threshold: >20 for Google Sheets")
-print("🕒 Running until 3:00 PM CST")
-print("🔗 All subscriptions using SINGLE WebSocket connection")
-print("⚡ Auto-reconnect when strike changes >100 points")
-print("🔍 Strike check interval: Every 10 minutes")
-print("-" * 60)
+if __name__ == "__main__":
+    # Main execution
+    print("\n🎯 Starting NDX Options Monitor with Dynamic Strike Adjustment...")
+    print("📊 Volume threshold: >20 for Google Sheets")
+    print("🕒 Running until 3:00 PM CST")
+    print("🔗 All subscriptions using SINGLE WebSocket connection")
+    print("⚡ Auto-reconnect when strike changes >100 points")
+    print("🔍 Strike check interval: Every 10 minutes")
+    print("-" * 60)
 
-run_websocket_client()
+    run_websocket_client()
 
-print(f"\n📊 Total messages received: {message_count}")
-if last_message_time:
-    print(f"🕐 Last message received at: {last_message_time.strftime('%H:%M:%S')}")
-print("👋 Goodbye!")
+    print(f"\n📊 Total messages received: {message_count}")
+    if last_message_time:
+        print(f"🕐 Last message received at: {last_message_time.strftime('%H:%M:%S')}")
+    print("👋 Goodbye!")
+

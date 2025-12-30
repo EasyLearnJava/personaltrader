@@ -66,12 +66,9 @@ htmlcov/
 .tox/
 
 # Deployment
-.railway/
-.vercel/
+.render/
 
 # Keep these JSON files
 !package.json
 !package-lock.json
 !tsconfig.json
-!vercel.json
-!railway.json

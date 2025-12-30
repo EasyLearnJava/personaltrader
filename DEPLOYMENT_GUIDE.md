@@ -79,7 +79,7 @@ git push -u origin main
 In Railway dashboard, go to **Variables** tab and add:
 
 ```
-MASSIVE_API_KEY=COYGxJhf5qJVI3RXykycEawX9OVVKrUF
+POLYGON_API_KEY=wsWMG2p9vhDDjVxAHSRz6qbSR_a7B1wL
 GOOGLE_SHEET_NAME=Dataintab
 ```
 

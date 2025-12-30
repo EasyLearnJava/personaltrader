@@ -7,11 +7,19 @@ import datetime
 import os
 import time
 import pytz
+import requests
+import threading
 
 # Configuration
-MASSIVE_API_KEY = "COYGxJhf5qJVI3RXykycEawX9OVVKrUF"
+POLYGON_API_KEY = "wsWMG2p9vhDDjVxAHSRz6qbSR_a7B1wL"
 GOOGLE_SHEET_NAME = "Dataintab"
 CREDENTIALS_FILE = "service_account.json"
+
+# Global variables for dynamic strike management
+current_strike = None
+last_strike = None
+reconnect_flag = False
+websocket_running = False
 
 # Initialize Google Sheets client
 def init_google_sheets():
@@ -44,17 +52,78 @@ def init_google_sheets():
 # Initialize Google Sheets
 google_sheet = init_google_sheets()
 
-# Initialize WebSocket client
-print("🔗 Initializing SINGLE WebSocket connection for all subscriptions...")
-client = WebSocketClient(
-    api_key=MASSIVE_API_KEY,
-    feed=Feed.RealTime,
-    market=Market.Options
-)
+# WebSocket client (will be initialized dynamically)
+client = None
 
 # Debug counters
 message_count = 0
 last_message_time = None
+
+def get_current_ndx_price():
+    """
+    Fetch current NDX index price from Polygon.io
+    Returns the price rounded to nearest 10 (strike interval)
+    """
+    try:
+        url = f"https://api.polygon.io/v2/aggs/ticker/I:NDX/prev?apiKey={POLYGON_API_KEY}"
+        response = requests.get(url, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+            if 'results' in data and len(data['results']) > 0:
+                price = data['results'][0]['c']  # Close price
+                strike = round(price / 10) * 10  # Round to nearest 10
+                print(f"✅ Fetched NDX price: ${price:,.2f} → Strike: ${int(strike):,}")
+                return int(strike)
+        else:
+            print(f"⚠️ Polygon API returned status {response.status_code}")
+    except Exception as e:
+        print(f"⚠️ Error fetching NDX price: {e}")
+
+    # Fallback to default
+    default_strike = 25650
+    print(f"⚠️ Using fallback strike: ${default_strike:,}")
+    return default_strike
+
+def check_strike_and_reconnect():
+    """
+    Background thread that checks NDX price every 10 minutes
+    Triggers reconnection if strike changes by more than 100 points
+    """
+    global current_strike, last_strike, reconnect_flag, websocket_running
+
+    while websocket_running:
+        time.sleep(600)  # Wait 10 minutes (600 seconds)
+
+        if not websocket_running:
+            break
+
+        new_strike = get_current_ndx_price()
+        strike_change = abs(new_strike - current_strike)
+
+        print(f"\n🔍 10-Minute Strike Check:")
+        print(f"   Current Strike: ${current_strike:,}")
+        print(f"   New Strike: ${new_strike:,}")
+        print(f"   Change: ${strike_change:,}")
+
+        if strike_change > 100:
+            print(f"⚠️ Strike changed by >{100} points! Triggering reconnection...")
+            current_strike = new_strike
+            reconnect_flag = True
+        else:
+            print(f"✅ Strike change ≤100 points. Continuing current connection.")
+
+def initialize_websocket_client():
+    """Initialize or reinitialize the WebSocket client"""
+    global client
+
+    print("🔗 Initializing WebSocket connection...")
+    client = WebSocketClient(
+        api_key=POLYGON_API_KEY,
+        feed=Feed.RealTime,
+        market=Market.Options
+    )
+    return client
 
 def write_to_sheet(data_row):
     global google_sheet
@@ -125,29 +194,32 @@ def is_market_hours():
     market_close = now.replace(hour=15, minute=0, second=0, microsecond=0)
     return now < market_close
 
-def create_subscriptions(current_strike, base_date):
+def create_subscriptions(strike, base_date):
+    """Create all option subscriptions based on current strike price"""
+    global client
+
     strike_interval = 10
 
     print(f"\n📡 SUBSCRIBING ALL TICKERS VIA SINGLE WEBSOCKET CONNECTION")
-    print(f"📍 Center Strike: ${current_strike:,}")
+    print(f"📍 Center Strike: ${strike:,}")
     print(f"📅 Expiry Date: {base_date}")
     print("-" * 60)
 
     subscription_count = 0
 
     # 1. Base ticker
-    original_ticker = f"AM.O:NDXP{base_date}C{current_strike:05d}000"
+    original_ticker = f"AM.O:NDXP{base_date}C{strike:05d}000"
     print(f"1. Base Ticker: {original_ticker}")
     client.subscribe(original_ticker)
     subscription_count += 1
 
     # 2. Test Range
     test_strikes = [
-        current_strike - 500,
-        current_strike - 200,
-        current_strike,
-        current_strike + 200,
-        current_strike + 500
+        strike - 500,
+        strike - 200,
+        strike,
+        strike + 200,
+        strike + 500
     ]
 
     print(f"\n2. Test Range (±500 points):")
@@ -160,33 +232,33 @@ def create_subscriptions(current_strike, base_date):
         subscription_count += 2
 
     # 3. PUTs below
-    print(f"\n3. PUT Options (30 strikes below ${current_strike:,}):")
+    print(f"\n3. PUT Options (30 strikes below ${strike:,}):")
     for i in range(1, 31):
-        put_strike = current_strike - (i * strike_interval)
+        put_strike = strike - (i * strike_interval)
         put_ticker = f"AM.O:NDXP{base_date}P{put_strike:05d}000"
         client.subscribe(put_ticker)
         subscription_count += 1
 
     # 4. PUTs above
-    print(f"\n4. PUT Options (20 strikes above ${current_strike:,}):")
+    print(f"\n4. PUT Options (20 strikes above ${strike:,}):")
     for i in range(1, 21):
-        put_strike = current_strike + (i * strike_interval)
+        put_strike = strike + (i * strike_interval)
         put_ticker = f"AM.O:NDXP{base_date}P{put_strike:05d}000"
         client.subscribe(put_ticker)
         subscription_count += 1
 
     # 5. CALLs below
-    print(f"\n5. CALL Options (20 strikes below ${current_strike:,}):")
+    print(f"\n5. CALL Options (20 strikes below ${strike:,}):")
     for i in range(1, 21):
-        call_strike = current_strike - (i * strike_interval)
+        call_strike = strike - (i * strike_interval)
         call_ticker = f"AM.O:NDXP{base_date}C{call_strike:05d}000"
         client.subscribe(call_ticker)
         subscription_count += 1
 
     # 6. CALLs above
-    print(f"\n6. CALL Options (20 strikes above ${current_strike:,}):")
+    print(f"\n6. CALL Options (20 strikes above ${strike:,}):")
     for i in range(1, 21):
-        call_strike = current_strike + (i * strike_interval)
+        call_strike = strike + (i * strike_interval)
         call_ticker = f"AM.O:NDXP{base_date}C{call_strike:05d}000"
         client.subscribe(call_ticker)
         subscription_count += 1
@@ -197,24 +269,43 @@ def create_subscriptions(current_strike, base_date):
     print(f"📊 Connection reuses same WebSocket client instance")
     print("-" * 60)
 
-# Set today's date and strike
-cst = pytz.timezone('US/Central')
-today = datetime.datetime.now(cst)
-base_date = today.strftime("%y%m%d")
-current_strike = 25650
-
-print(f"📅 Today's Date: {today.strftime('%B %d, %Y')}")
-print(f"📅 Expiry Code: {base_date}")
-print(f"📊 NDX Strike Level: ${current_strike:,}")
-
-create_subscriptions(current_strike, base_date)
-
 def run_websocket_client():
+    """
+    Main WebSocket client loop with dynamic reconnection
+    Reconnects when strike changes by >100 points
+    """
+    global current_strike, last_strike, reconnect_flag, websocket_running, client
+
     retry_count = 0
     max_retries = 100
 
+    # Get initial strike price
+    current_strike = get_current_ndx_price()
+    last_strike = current_strike
+
+    # Get today's date for options
+    cst = pytz.timezone('US/Central')
+    today = datetime.datetime.now(cst)
+    base_date = today.strftime("%y%m%d")
+
+    print(f"📅 Today's Date: {today.strftime('%B %d, %Y')}")
+    print(f"📅 Expiry Code: {base_date}")
+    print(f"📊 Initial NDX Strike Level: ${current_strike:,}")
+
+    # Start background thread to check strike every 10 minutes
+    websocket_running = True
+    monitor_thread = threading.Thread(target=check_strike_and_reconnect, daemon=True)
+    monitor_thread.start()
+    print("✅ Started 10-minute strike monitoring thread")
+
     while retry_count < max_retries and is_market_hours():
         try:
+            # Initialize WebSocket client
+            initialize_websocket_client()
+
+            # Create subscriptions with current strike
+            create_subscriptions(current_strike, base_date)
+
             now = datetime.datetime.now(pytz.timezone('America/Chicago'))
             market_close = now.replace(hour=15, minute=0, second=0, microsecond=0)
             time_remaining = market_close - now
@@ -225,11 +316,42 @@ def run_websocket_client():
             print("📡 Listening for options data on SINGLE WebSocket connection...")
             print("💡 If no messages appear within 30 seconds, there may be no active trading on these strikes")
 
-            client.run(handle_msg)
-            break  # Normal close
+            # Reset reconnect flag
+            reconnect_flag = False
+
+            # Run WebSocket in a separate thread so we can check for reconnect flag
+            ws_thread = threading.Thread(target=lambda: client.run(handle_msg), daemon=True)
+            ws_thread.start()
+
+            # Monitor for reconnection trigger
+            while ws_thread.is_alive() and is_market_hours():
+                if reconnect_flag:
+                    print(f"\n🔄 RECONNECTION TRIGGERED!")
+                    print(f"   Old Strike: ${last_strike:,}")
+                    print(f"   New Strike: ${current_strike:,}")
+                    print(f"   Closing current connection...")
+
+                    # Close current connection
+                    try:
+                        client.close()
+                    except:
+                        pass
+
+                    last_strike = current_strike
+                    reconnect_flag = False
+
+                    print(f"✅ Connection closed. Will reconnect with new strike...")
+                    break
+
+                time.sleep(1)  # Check every second
+
+            if not reconnect_flag:
+                # Normal exit (market closed or thread ended)
+                break
 
         except KeyboardInterrupt:
             print("\n🛑 User interrupted - shutting down...")
+            websocket_running = False
             break
 
         except Exception as e:
@@ -241,17 +363,24 @@ def run_websocket_client():
                 time.sleep(wait_time)
             else:
                 print("🏁 Max retries reached or market closed")
+                websocket_running = False
                 break
 
-print("\n🎯 Starting NDX Options Monitor...")
+    websocket_running = False
+    print(f"\n✅ WebSocket client stopped")
+
+# Main execution
+print("\n🎯 Starting NDX Options Monitor with Dynamic Strike Adjustment...")
 print("📊 Volume threshold: >20 for Google Sheets")
 print("🕒 Running until 3:00 PM CST")
 print("🔗 All subscriptions using SINGLE WebSocket connection")
+print("⚡ Auto-reconnect when strike changes >100 points")
+print("🔍 Strike check interval: Every 10 minutes")
 print("-" * 60)
 
 run_websocket_client()
 
-print(f"\n✅ WebSocket client stopped")
-print(f"📊 Total messages received: {message_count}")
+print(f"\n📊 Total messages received: {message_count}")
 if last_message_time:
     print(f"🕐 Last message received at: {last_message_time.strftime('%H:%M:%S')}")
+print("👋 Goodbye!")

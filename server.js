@@ -1,17 +1,24 @@
 const express = require('express');
 const path = require('path');
 const { spawn } = require('child_process');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const PYTHON_API_PORT = 5000;
+
+// Proxy API requests to Python Flask server
+app.use('/api', createProxyMiddleware({
+  target: `http://localhost:${PYTHON_API_PORT}`,
+  changeOrigin: true,
+  onError: (err, req, res) => {
+    console.error('Proxy error:', err);
+    res.status(500).json({ error: 'Backend API unavailable' });
+  }
+}));
 
 // Serve static files from the frontend/dist directory
 app.use(express.static(path.join(__dirname, 'frontend', 'dist')));
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
-});
 
 // All other routes serve the React app
 app.get('*', (req, res) => {

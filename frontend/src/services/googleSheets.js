@@ -1,50 +1,49 @@
 /**
- * Google Sheets API Service
- * Fetches data from the Google Sheet where Python backend writes data
+ * Options Data API Service
+ * Fetches real-time options data from the Python backend API
  */
 
-const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || 'YOUR_SHEET_ID'
-const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'YOUR_API_KEY'
-const SHEET_NAME = 'Sheet1' // Change if your sheet has a different name
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 /**
- * Fetch data from Google Sheets using the Sheets API v4
- * Make sure the Google Sheet is publicly readable or API key has access
+ * Fetch options data from the backend API
  */
 export async function fetchGoogleSheetData() {
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
-    
+    const url = `${API_BASE_URL}/options`
+
     const response = await fetch(url)
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch data: ${response.statusText}`)
     }
-    
+
     const result = await response.json()
-    const rows = result.values || []
-    
-    if (rows.length === 0) {
-      return []
-    }
-    
-    // First row is headers
-    const headers = rows[0]
-    
-    // Convert rows to objects
-    const data = rows.slice(1).map(row => {
-      const obj = {}
-      headers.forEach((header, index) => {
-        obj[header] = row[index] || ''
-      })
-      return obj
-    })
-    
-    // Sort by timestamp (newest first)
-    return data.reverse()
-    
+
+    // Return data array (already in object format from backend)
+    return result.data || []
+
   } catch (error) {
-    console.error('Error fetching Google Sheets data:', error)
+    console.error('Error fetching options data:', error)
+    throw error
+  }
+}
+
+/**
+ * Fetch health status from backend
+ */
+export async function fetchHealthStatus() {
+  try {
+    const url = `${API_BASE_URL}/health`
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error(`Health check failed: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching health status:', error)
     throw error
   }
 }

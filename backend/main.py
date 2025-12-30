@@ -1,8 +1,6 @@
 from massive import WebSocketClient
 from massive.websocket.models import WebSocketMessage, Feed, Market
 from typing import List
-import gspread
-from google.oauth2.service_account import Credentials
 import datetime
 import os
 import time
@@ -10,10 +8,12 @@ import pytz
 import requests
 import threading
 import json
+from collections import deque
+from flask import Flask, jsonify
+from flask_cors import CORS
 
 # Configuration
 POLYGON_API_KEY = os.getenv('POLYGON_API_KEY', 'wsWMG2p9vhDDjVxAHSRz6qbSR_a7B1wL')
-GOOGLE_SHEET_NAME = os.getenv('GOOGLE_SHEET_NAME', 'Dataintab')
 
 # Global variables for dynamic strike management
 current_strike = None
@@ -21,47 +21,38 @@ last_strike = None
 reconnect_flag = False
 websocket_running = False
 
-# Initialize Google Sheets client
-def init_google_sheets():
-    try:
-        # Try to get credentials from environment variable first
-        creds_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
-        
-        if creds_json:
-            # Parse JSON from environment variable
-            creds_dict = json.loads(creds_json)
-            scope = ['https://spreadsheets.google.com/feeds',
-                     'https://www.googleapis.com/auth/drive']
-            credentials = Credentials.from_service_account_info(creds_dict, scopes=scope)
-        elif os.path.exists('service_account.json'):
-            # Fallback to file
-            scope = ['https://spreadsheets.google.com/feeds',
-                     'https://www.googleapis.com/auth/drive']
-            credentials = Credentials.from_service_account_file('service_account.json', scopes=scope)
-        else:
-            print(f"❌ No Google credentials found. Set GOOGLE_SERVICE_ACCOUNT_JSON env var")
-            return None
+# In-memory data storage (keep last 1000 records)
+options_data = deque(maxlen=1000)
+data_lock = threading.Lock()
 
-        gc = gspread.authorize(credentials)
-        sheet = gc.open(GOOGLE_SHEET_NAME).sheet1
+# Flask app for API
+flask_app = Flask(__name__)
+CORS(flask_app)  # Enable CORS for frontend access
 
-        try:
-            existing_data = sheet.get_all_records()
-            if not existing_data:
-                headers = ['Timestamp', 'Symbol', 'Option_Type', 'Strike_Price', 'Close_Price',
-                           'Volume', 'Accumulated_Volume', 'High', 'Low', 'Open', 'VWAP']
-                sheet.append_row(headers)
-                print("✅ Google Sheet initialized with headers")
-        except Exception as header_error:
-            print(f"⚠️ Header check issue (sheet may have existing data): {header_error}")
+@flask_app.route('/api/options', methods=['GET'])
+def get_options_data():
+    """API endpoint to get options data"""
+    with data_lock:
+        data_list = list(options_data)
+    return jsonify({
+        'data': data_list,
+        'count': len(data_list),
+        'last_update': datetime.datetime.now().isoformat()
+    })
 
-        return sheet
-    except Exception as e:
-        print(f"❌ Google Sheets setup error: {e}")
-        return None
+@flask_app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'ok',
+        'websocket_running': websocket_running,
+        'data_count': len(options_data),
+        'current_strike': current_strike
+    })
 
-# Initialize Google Sheets
-google_sheet = init_google_sheets()
+def start_flask_server():
+    """Start Flask server in a separate thread"""
+    flask_app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
 # WebSocket client (will be initialized dynamically)
 client = None
@@ -70,16 +61,11 @@ client = None
 message_count = 0
 last_message_time = None
 
-def write_to_sheet(data_row):
-    global google_sheet
-    if google_sheet:
-        try:
-            google_sheet.append_row(data_row)
-            return True
-        except Exception as e:
-            print(f"❌ Error writing to sheet: {e}")
-            return False
-    return False
+def store_data(data_dict):
+    """Store data in memory"""
+    with data_lock:
+        options_data.append(data_dict)
+    return True
 
 def get_current_ndx_price():
     """
@@ -187,14 +173,25 @@ def handle_msg(msgs: List[WebSocketMessage]):
 
                     full_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     formatted_strike = f"${strike_price:,}"
-                    data_row = [
-                        full_timestamp, symbol, option_type, formatted_strike, close,
-                        volume, accumulated_volume, high, low, open_price, vwap
-                    ]
 
-                    if volume > 20 and google_sheet:
-                        if write_to_sheet(data_row):
-                            print(f" 📊 Data saved to Google Sheet")
+                    # Create data dictionary for storage
+                    data_dict = {
+                        'Timestamp': full_timestamp,
+                        'Symbol': symbol,
+                        'Option_Type': option_type,
+                        'Strike_Price': formatted_strike,
+                        'Close_Price': close,
+                        'Volume': volume,
+                        'Accumulated_Volume': accumulated_volume,
+                        'High': high,
+                        'Low': low,
+                        'Open': open_price,
+                        'VWAP': vwap
+                    }
+
+                    if volume > 20:
+                        if store_data(data_dict):
+                            print(f" 📊 Data stored in memory")
 
                 except Exception as e:
                     print(f"Error parsing: {e}")
@@ -381,18 +378,27 @@ def run_websocket_client():
     print(f"\n✅ WebSocket client stopped")
 
 if __name__ == "__main__":
+    # Start Flask API server in background thread
+    print("🌐 Starting Flask API server on port 5000...")
+    flask_thread = threading.Thread(target=start_flask_server, daemon=True)
+    flask_thread.start()
+    time.sleep(2)  # Give Flask time to start
+    print("✅ Flask API server started")
+
     # Main execution
     print("\n🎯 Starting NDX Options Monitor with Dynamic Strike Adjustment...")
-    print("📊 Volume threshold: >20 for Google Sheets")
+    print("📊 Volume threshold: >20 for data storage")
     print("🕒 Running until 3:00 PM CST")
     print("🔗 All subscriptions using SINGLE WebSocket connection")
     print("⚡ Auto-reconnect when strike changes >100 points")
     print("🔍 Strike check interval: Every 10 minutes")
+    print("🌐 API available at: http://localhost:5000/api/options")
     print("-" * 60)
 
     run_websocket_client()
 
     print(f"\n📊 Total messages received: {message_count}")
+    print(f"📊 Total data points stored: {len(options_data)}")
     if last_message_time:
         print(f"🕐 Last message received at: {last_message_time.strftime('%H:%M:%S')}")
     print("👋 Goodbye!")

@@ -9,7 +9,7 @@ const PYTHON_API_PORT = 5000;
 
 // Proxy API requests to Python Flask server
 app.use('/api', createProxyMiddleware({
-  target: `http://localhost:${PYTHON_API_PORT}`,
+  target: `http://127.0.0.1:${PYTHON_API_PORT}`,
   changeOrigin: true,
   onError: (err, req, res) => {
     console.error('Proxy error:', err);

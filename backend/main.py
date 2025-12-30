@@ -378,14 +378,7 @@ def run_websocket_client():
     print(f"\n✅ WebSocket client stopped")
 
 if __name__ == "__main__":
-    # Start Flask API server in background thread
-    print("🌐 Starting Flask API server on port 5000...")
-    flask_thread = threading.Thread(target=start_flask_server, daemon=True)
-    flask_thread.start()
-    time.sleep(2)  # Give Flask time to start
-    print("✅ Flask API server started")
-
-    # Main execution
+    # Start WebSocket client in background thread
     print("\n🎯 Starting NDX Options Monitor with Dynamic Strike Adjustment...")
     print("📊 Volume threshold: >20 for data storage")
     print("🕒 Running until 3:00 PM CST")
@@ -395,11 +388,12 @@ if __name__ == "__main__":
     print("🌐 API available at: http://localhost:5000/api/options")
     print("-" * 60)
 
-    run_websocket_client()
+    # Start WebSocket client in background thread
+    ws_thread = threading.Thread(target=run_websocket_client, daemon=True)
+    ws_thread.start()
 
-    print(f"\n📊 Total messages received: {message_count}")
-    print(f"📊 Total data points stored: {len(options_data)}")
-    if last_message_time:
-        print(f"🕐 Last message received at: {last_message_time.strftime('%H:%M:%S')}")
-    print("👋 Goodbye!")
+    # Start Flask API server (this will run forever)
+    print("🌐 Starting Flask API server on port 5000...")
+    print("✅ Flask API server ready to accept requests")
+    start_flask_server()
 

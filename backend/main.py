@@ -197,10 +197,16 @@ def handle_msg(msgs: List[WebSocketMessage]):
                     print(f"Error parsing: {e}")
 
 def is_market_hours():
+    """Check if current time is within market hours (8:29 AM - 3:01 PM CST)"""
     cst = pytz.timezone('America/Chicago')
     now = datetime.datetime.now(cst)
-    market_close = now.replace(hour=15, minute=0, second=0, microsecond=0)
-    return now < market_close
+
+    # Market opens at 8:29 AM CST
+    market_open = now.replace(hour=8, minute=29, second=0, microsecond=0)
+    # Market closes at 3:01 PM CST
+    market_close = now.replace(hour=15, minute=1, second=0, microsecond=0)
+
+    return market_open <= now <= market_close
 
 def create_subscriptions(strike, base_date):
     """Create all option subscriptions based on current strike price"""
@@ -281,8 +287,33 @@ def run_websocket_client():
     """
     Main WebSocket client loop with dynamic reconnection
     Reconnects when strike changes by >100 points
+    Only runs during market hours: 8:29 AM - 3:01 PM CST
     """
     global current_strike, last_strike, reconnect_flag, websocket_running, client
+
+    # Check if we're within market hours before starting
+    if not is_market_hours():
+        cst = pytz.timezone('America/Chicago')
+        now = datetime.datetime.now(cst)
+        market_open = now.replace(hour=8, minute=29, second=0, microsecond=0)
+        market_close = now.replace(hour=15, minute=1, second=0, microsecond=0)
+
+        print(f"\n⏰ MARKET IS CLOSED")
+        print(f"🕐 Current CST time: {now.strftime('%I:%M:%S %p')}")
+        print(f"📅 Current date: {now.strftime('%B %d, %Y (%A)')}")
+        print(f"🔔 Market hours: 8:29 AM - 3:01 PM CST")
+
+        if now < market_open:
+            time_until_open = market_open - now
+            hours, remainder = divmod(time_until_open.seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            print(f"⏳ Market opens in: {hours}h {minutes}m {seconds}s")
+        else:
+            print(f"📊 Market closed for today. Opens tomorrow at 8:29 AM CST")
+
+        print(f"💤 WebSocket client will not start outside market hours")
+        websocket_running = False
+        return
 
     retry_count = 0
     max_retries = 100
@@ -378,10 +409,10 @@ def run_websocket_client():
     print(f"\n✅ WebSocket client stopped")
 
 if __name__ == "__main__":
-    # Start WebSocket client in background thread
+    # Display startup information
     print("\n🎯 Starting NDX Options Monitor with Dynamic Strike Adjustment...")
     print("📊 Volume threshold: >20 for data storage")
-    print("🕒 Running until 3:00 PM CST")
+    print("🕒 Market hours: 8:29 AM - 3:01 PM CST")
     print("🔗 All subscriptions using SINGLE WebSocket connection")
     print("⚡ Auto-reconnect when strike changes >100 points")
     print("🔍 Strike check interval: Every 10 minutes")

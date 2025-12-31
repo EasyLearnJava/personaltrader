@@ -128,7 +128,7 @@ def initialize_websocket_client():
     print("🔗 Initializing WebSocket connection...")
     client = WebSocketClient(
         api_key=POLYGON_API_KEY,
-        feed=Feed.Delayed,  # Use Delayed feed (15-min delay) for basic/starter plans
+        feed=Feed.RealTime,  # Real-time data feed
         market=Market.Options
     )
     return client

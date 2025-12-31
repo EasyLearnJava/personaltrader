@@ -6,7 +6,7 @@ import DataTable from './DataTable'
 import VolumeChart from './VolumeChart'
 import './Dashboard.css'
 
-function Dashboard({ data, loading, error, lastUpdate, onRefresh }) {
+function Dashboard({ data, loading, error, lastUpdate, currentStrike, onRefresh }) {
   const [filterType, setFilterType] = useState('ALL')
   const [minVolume, setMinVolume] = useState(0)
   const [searchStrike, setSearchStrike] = useState('')
@@ -26,8 +26,13 @@ function Dashboard({ data, loading, error, lastUpdate, onRefresh }) {
       }
 
       // Filter by strike price search
-      if (searchStrike && !row.Strike_Price?.includes(searchStrike)) {
-        return false
+      if (searchStrike) {
+        // Remove all non-numeric characters from both the search and the strike price
+        const cleanSearch = searchStrike.replace(/[^0-9]/g, '')
+        const cleanStrike = row.Strike_Price?.replace(/[^0-9]/g, '') || ''
+        if (!cleanStrike.includes(cleanSearch)) {
+          return false
+        }
       }
 
       return true
@@ -40,7 +45,7 @@ function Dashboard({ data, loading, error, lastUpdate, onRefresh }) {
     const uniqueStrikes = new Set(filteredData.map(r => r.Strike_Price)).size
     const totalVolume = filteredData.reduce((sum, r) => sum + (parseInt(r.Volume) || 0), 0)
     const avgVolume = totalTrades > 0 ? Math.floor(totalVolume / totalTrades) : 0
-    
+
     const callCount = filteredData.filter(r => r.Option_Type === 'CALL').length
     const putCount = filteredData.filter(r => r.Option_Type === 'PUT').length
 
@@ -51,9 +56,10 @@ function Dashboard({ data, loading, error, lastUpdate, onRefresh }) {
       totalVolume,
       callCount,
       putCount,
+      currentStrike,
       lastUpdate
     }
-  }, [filteredData, lastUpdate])
+  }, [filteredData, currentStrike, lastUpdate])
 
   if (error) {
     return (

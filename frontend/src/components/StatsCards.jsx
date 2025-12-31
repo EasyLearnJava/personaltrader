@@ -28,6 +28,12 @@ function StatsCards({ stats }) {
       color: 'yellow'
     },
     {
+      title: 'Current Strike',
+      value: stats.currentStrike ? `$${formatNumber(stats.currentStrike)}` : 'Loading...',
+      icon: '🎲',
+      color: 'orange'
+    },
+    {
       title: 'CALL Options',
       value: formatNumber(stats.callCount),
       icon: '📞',

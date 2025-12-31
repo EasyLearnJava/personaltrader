@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import Dashboard from './components/Dashboard'
-import { fetchGoogleSheetData } from './services/googleSheets'
+import { fetchGoogleSheetData, fetchHealthStatus } from './services/googleSheets'
 import './App.css'
 
 function App() {
@@ -8,6 +8,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
+  const [currentStrike, setCurrentStrike] = useState(null)
 
   const loadData = async () => {
     try {
@@ -16,6 +17,14 @@ function App() {
       setData(sheetData)
       setLastUpdate(new Date())
       setError(null)
+
+      // Also fetch current strike from health endpoint
+      try {
+        const health = await fetchHealthStatus()
+        setCurrentStrike(health.current_strike)
+      } catch (healthErr) {
+        console.error('Error fetching health status:', healthErr)
+      }
     } catch (err) {
       console.error('Error loading data:', err)
       setError(err.message)
@@ -35,11 +44,12 @@ function App() {
 
   return (
     <div className="app">
-      <Dashboard 
+      <Dashboard
         data={data}
         loading={loading}
         error={error}
         lastUpdate={lastUpdate}
+        currentStrike={currentStrike}
         onRefresh={loadData}
       />
     </div>

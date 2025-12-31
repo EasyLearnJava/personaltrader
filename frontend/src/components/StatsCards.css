@@ -42,6 +42,10 @@
   border-color: var(--accent-red);
 }
 
+.stat-card-orange:hover {
+  border-color: #f97316;
+}
+
 .stat-icon {
   font-size: 36px;
   line-height: 1;

@@ -340,9 +340,10 @@ def run_websocket_client():
     max_retries = 100
 
     # Get initial strike price and live price
-    current_strike, live_price = get_current_ndx_price()
-    last_strike = current_strike
-    live_ndx_price = live_price
+    initial_strike, initial_price = get_current_ndx_price()
+    current_strike = initial_strike
+    last_strike = initial_strike
+    live_ndx_price = initial_price
 
     # Get today's date for options
     cst = pytz.timezone('US/Central')

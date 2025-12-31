@@ -408,6 +408,38 @@ def run_websocket_client():
     websocket_running = False
     print(f"\n✅ WebSocket client stopped")
 
+def websocket_manager():
+    """
+    Manages WebSocket client lifecycle - starts it during market hours,
+    waits when market is closed, and restarts when market opens
+    """
+    while True:
+        if is_market_hours():
+            # Market is open - run WebSocket client
+            run_websocket_client()
+            # If we get here, WebSocket stopped (market closed or error)
+            # Wait a bit before checking again
+            time.sleep(60)
+        else:
+            # Market is closed - wait and check again
+            cst = pytz.timezone('America/Chicago')
+            now = datetime.datetime.now(cst)
+            market_open = now.replace(hour=8, minute=29, second=0, microsecond=0)
+
+            if now < market_open:
+                # Before market open today
+                time_until_open = (market_open - now).total_seconds()
+                print(f"\n⏰ Market opens in {time_until_open/3600:.1f} hours")
+                print(f"💤 Sleeping until market opens...")
+                # Sleep until 1 minute before market open
+                sleep_time = max(60, time_until_open - 60)
+                time.sleep(sleep_time)
+            else:
+                # After market close - wait until tomorrow
+                print(f"\n📊 Market closed for today")
+                print(f"💤 Will check again in 1 hour...")
+                time.sleep(3600)  # Check every hour
+
 if __name__ == "__main__":
     # Display startup information
     print("\n🎯 Starting NDX Options Monitor with Dynamic Strike Adjustment...")
@@ -419,8 +451,8 @@ if __name__ == "__main__":
     print("🌐 API available at: http://localhost:5000/api/options")
     print("-" * 60)
 
-    # Start WebSocket client in background thread
-    ws_thread = threading.Thread(target=run_websocket_client, daemon=True)
+    # Start WebSocket manager in background thread
+    ws_thread = threading.Thread(target=websocket_manager, daemon=True)
     ws_thread.start()
 
     # Start Flask API server (this will run forever)

@@ -46,6 +46,14 @@
   border-color: #f97316;
 }
 
+.stat-card-cyan:hover {
+  border-color: #06b6d4;
+}
+
+.stat-card-teal:hover {
+  border-color: #14b8a6;
+}
+
 .stat-icon {
   font-size: 36px;
   line-height: 1;

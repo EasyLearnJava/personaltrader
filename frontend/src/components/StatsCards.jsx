@@ -2,6 +2,14 @@ import { formatNumber } from '../services/googleSheets'
 import './StatsCards.css'
 
 function StatsCards({ stats }) {
+  // Format countdown timer
+  const formatCountdown = (seconds) => {
+    if (seconds === null || seconds === undefined) return 'Loading...'
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
   const cards = [
     {
       title: 'Total Trades',
@@ -32,6 +40,18 @@ function StatsCards({ stats }) {
       value: stats.currentStrike ? `$${formatNumber(stats.currentStrike)}` : 'Loading...',
       icon: '🎲',
       color: 'orange'
+    },
+    {
+      title: 'Live NDX Price',
+      value: stats.liveNdxPrice ? `$${stats.liveNdxPrice.toFixed(2)}` : 'Loading...',
+      icon: '⚡',
+      color: 'cyan'
+    },
+    {
+      title: 'Next Refresh',
+      value: formatCountdown(stats.nextRefreshSeconds),
+      icon: '⏱️',
+      color: 'teal'
     },
     {
       title: 'CALL Options',

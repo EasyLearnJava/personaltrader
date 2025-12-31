@@ -9,6 +9,8 @@ function App() {
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [currentStrike, setCurrentStrike] = useState(null)
+  const [liveNdxPrice, setLiveNdxPrice] = useState(null)
+  const [nextRefreshSeconds, setNextRefreshSeconds] = useState(null)
 
   const loadData = async () => {
     try {
@@ -18,10 +20,12 @@ function App() {
       setLastUpdate(new Date())
       setError(null)
 
-      // Also fetch current strike from health endpoint
+      // Also fetch health data (current strike, live price, refresh countdown)
       try {
         const health = await fetchHealthStatus()
         setCurrentStrike(health.current_strike)
+        setLiveNdxPrice(health.live_ndx_price)
+        setNextRefreshSeconds(health.next_refresh_seconds)
       } catch (healthErr) {
         console.error('Error fetching health status:', healthErr)
       }
@@ -50,6 +54,8 @@ function App() {
         error={error}
         lastUpdate={lastUpdate}
         currentStrike={currentStrike}
+        liveNdxPrice={liveNdxPrice}
+        nextRefreshSeconds={nextRefreshSeconds}
         onRefresh={loadData}
       />
     </div>

@@ -18,6 +18,8 @@ POLYGON_API_KEY = os.getenv('POLYGON_API_KEY', 'wsWMG2p9vhDDjVxAHSRz6qbSR_a7B1wL
 # Global variables for dynamic strike management
 current_strike = None
 last_strike = None
+live_ndx_price = None
+next_refresh_time = None
 reconnect_flag = False
 websocket_running = False
 
@@ -43,11 +45,19 @@ def get_options_data():
 @flask_app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    # Calculate seconds until next refresh
+    seconds_until_refresh = None
+    if next_refresh_time:
+        time_diff = next_refresh_time - datetime.datetime.now()
+        seconds_until_refresh = max(0, int(time_diff.total_seconds()))
+
     return jsonify({
         'status': 'ok',
         'websocket_running': websocket_running,
         'data_count': len(options_data),
-        'current_strike': current_strike
+        'current_strike': current_strike,
+        'live_ndx_price': live_ndx_price,
+        'next_refresh_seconds': seconds_until_refresh
     })
 
 def start_flask_server():
@@ -69,55 +79,66 @@ def store_data(data_dict):
 
 def get_current_ndx_price():
     """
-    Fetch current NDX index price from Polygon.io
-    Returns the price rounded to nearest 10 (strike interval)
+    Fetch REAL-TIME NDX index price from Polygon.io
+    Returns both the actual price and the price rounded to nearest 10 (strike interval)
     """
     try:
-        url = f"https://api.polygon.io/v2/aggs/ticker/I:NDX/prev?apiKey={POLYGON_API_KEY}"
+        # Use snapshot endpoint for real-time data
+        url = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/I:NDX?apiKey={POLYGON_API_KEY}"
         response = requests.get(url, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
-            if 'results' in data and len(data['results']) > 0:
-                price = data['results'][0]['c']  # Close price
+            if 'ticker' in data and 'lastTrade' in data['ticker']:
+                price = data['ticker']['lastTrade']['p']  # Real-time last trade price
                 strike = round(price / 10) * 10  # Round to nearest 10
-                print(f"✅ Fetched NDX price: ${price:,.2f} → Strike: ${int(strike):,}")
-                return int(strike)
+                print(f"✅ Fetched REAL-TIME NDX price: ${price:,.2f} → Strike: ${int(strike):,}")
+                return int(strike), price
         else:
             print(f"⚠️ Polygon API returned status {response.status_code}")
     except Exception as e:
         print(f"⚠️ Error fetching NDX price: {e}")
-    
+
     # Fallback to default
     default_strike = 25650
+    default_price = 25650.0
     print(f"⚠️ Using fallback strike: ${default_strike:,}")
-    return default_strike
+    return default_strike, default_price
 
 def check_strike_and_reconnect():
     """
     Background thread that checks NDX price every 10 minutes
-    Triggers reconnection if strike changes by more than 100 points
+    ALWAYS triggers reconnection to use latest strike price
     """
-    global current_strike, last_strike, reconnect_flag, websocket_running
-    
+    global current_strike, last_strike, live_ndx_price, next_refresh_time, reconnect_flag, websocket_running
+
     while websocket_running:
-        time.sleep(600)  # Wait 10 minutes (600 seconds)
-        
+        # Set next refresh time (10 minutes from now)
+        next_refresh_time = datetime.datetime.now() + datetime.timedelta(minutes=10)
+
+        # Wait 10 minutes (600 seconds)
+        for i in range(600):
+            if not websocket_running:
+                break
+            time.sleep(1)  # Sleep 1 second at a time to allow clean shutdown
+
         if not websocket_running:
             break
-            
-        new_strike = get_current_ndx_price()
+
+        new_strike, new_price = get_current_ndx_price()
         strike_change = abs(new_strike - current_strike)
-        
+
         print(f"\n🔍 10-Minute Strike Check:")
         print(f"   Current Strike: ${current_strike:,}")
         print(f"   New Strike: ${new_strike:,}")
+        print(f"   Live NDX Price: ${new_price:,.2f}")
         print(f"   Change: ${strike_change:,}")
-        
-        if strike_change > 100:
-            print(f"⚠️ Strike changed by >{100} points! Triggering reconnection...")
-            current_strike = new_strike
-            reconnect_flag = True
+
+        # ALWAYS reconnect every 10 minutes with latest strike
+        print(f"🔄 10-minute interval reached - Triggering reconnection with latest strike...")
+        current_strike = new_strike
+        live_ndx_price = new_price
+        reconnect_flag = True
         else:
             print(f"✅ Strike change ≤100 points. Continuing current connection.")
 
@@ -286,10 +307,10 @@ def create_subscriptions(strike, base_date):
 def run_websocket_client():
     """
     Main WebSocket client loop with dynamic reconnection
-    Reconnects when strike changes by >100 points
+    Reconnects every 10 minutes with latest real-time strike price
     Only runs during market hours: 8:29 AM - 3:01 PM CST
     """
-    global current_strike, last_strike, reconnect_flag, websocket_running, client
+    global current_strike, last_strike, live_ndx_price, next_refresh_time, reconnect_flag, websocket_running, client
 
     # Check if we're within market hours before starting
     if not is_market_hours():
@@ -318,9 +339,10 @@ def run_websocket_client():
     retry_count = 0
     max_retries = 100
 
-    # Get initial strike price
-    current_strike = get_current_ndx_price()
+    # Get initial strike price and live price
+    current_strike, live_price = get_current_ndx_price()
     last_strike = current_strike
+    live_ndx_price = live_price
 
     # Get today's date for options
     cst = pytz.timezone('US/Central')

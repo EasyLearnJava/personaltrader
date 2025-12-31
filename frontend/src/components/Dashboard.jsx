@@ -6,7 +6,7 @@ import DataTable from './DataTable'
 import VolumeChart from './VolumeChart'
 import './Dashboard.css'
 
-function Dashboard({ data, loading, error, lastUpdate, currentStrike, onRefresh }) {
+function Dashboard({ data, loading, error, lastUpdate, currentStrike, liveNdxPrice, nextRefreshSeconds, onRefresh }) {
   const [filterType, setFilterType] = useState('ALL')
   const [minVolume, setMinVolume] = useState(0)
   const [searchStrike, setSearchStrike] = useState('')
@@ -57,9 +57,11 @@ function Dashboard({ data, loading, error, lastUpdate, currentStrike, onRefresh 
       callCount,
       putCount,
       currentStrike,
+      liveNdxPrice,
+      nextRefreshSeconds,
       lastUpdate
     }
-  }, [filteredData, currentStrike, lastUpdate])
+  }, [filteredData, currentStrike, liveNdxPrice, nextRefreshSeconds, lastUpdate])
 
   if (error) {
     return (

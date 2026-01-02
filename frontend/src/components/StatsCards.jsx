@@ -12,30 +12,6 @@ function StatsCards({ stats }) {
 
   const cards = [
     {
-      title: 'Total Trades',
-      value: formatNumber(stats.totalTrades),
-      icon: '📈',
-      color: 'blue'
-    },
-    {
-      title: 'Active Strikes',
-      value: formatNumber(stats.uniqueStrikes),
-      icon: '🎯',
-      color: 'purple'
-    },
-    {
-      title: 'Avg Volume',
-      value: formatNumber(stats.avgVolume),
-      icon: '📊',
-      color: 'green'
-    },
-    {
-      title: 'Total Volume',
-      value: formatNumber(stats.totalVolume),
-      icon: '💹',
-      color: 'yellow'
-    },
-    {
       title: 'Current Strike',
       value: stats.currentStrike ? `$${formatNumber(Math.round(stats.currentStrike))}` : 'Loading...',
       icon: '🎲',

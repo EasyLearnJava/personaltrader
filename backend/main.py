@@ -380,7 +380,17 @@ def run_websocket_client():
             reconnect_flag = False
 
             # Run WebSocket in a separate thread so we can check for reconnect flag
-            ws_thread = threading.Thread(target=lambda: client.run(handle_msg), daemon=True)
+            def run_websocket_with_error_handling():
+                try:
+                    client.run(handle_msg)
+                except Exception as e:
+                    # Suppress connection errors when market is closed
+                    if not is_market_hours():
+                        print(f"ℹ️ WebSocket closed (market hours ended)")
+                    else:
+                        print(f"⚠️ WebSocket error: {e}")
+
+            ws_thread = threading.Thread(target=run_websocket_with_error_handling, daemon=True)
             ws_thread.start()
 
             # Monitor for reconnection trigger

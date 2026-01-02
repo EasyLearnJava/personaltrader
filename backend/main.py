@@ -139,8 +139,6 @@ def check_strike_and_reconnect():
         current_strike = new_strike
         live_ndx_price = new_price
         reconnect_flag = True
-        else:
-            print(f"✅ Strike change ≤100 points. Continuing current connection.")
 
 def initialize_websocket_client():
     """Initialize or reinitialize the WebSocket client"""

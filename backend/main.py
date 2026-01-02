@@ -346,9 +346,21 @@ def run_websocket_client():
     # Get today's date for options
     cst = pytz.timezone('US/Central')
     today = datetime.datetime.now(cst)
-    base_date = today.strftime("%y%m%d")
 
-    print(f"📅 Today's Date: {today.strftime('%B %d, %Y')}")
+    # Calculate next Friday for weekly options
+    # NDX weekly options expire on Fridays
+    days_until_friday = (4 - today.weekday()) % 7  # 4 = Friday (0=Monday)
+    if days_until_friday == 0:
+        # Today is Friday - use today for 0DTE
+        expiry_date = today
+    else:
+        # Use next Friday
+        expiry_date = today + datetime.timedelta(days=days_until_friday)
+
+    base_date = expiry_date.strftime("%y%m%d")
+
+    print(f"📅 Today's Date: {today.strftime('%B %d, %Y (%A)')}")
+    print(f"📅 Options Expiry: {expiry_date.strftime('%B %d, %Y (%A)')}")
     print(f"📅 Expiry Code: {base_date}")
     print(f"📊 Initial NDX Strike Level: ${current_strike:,}")
 

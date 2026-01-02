@@ -264,33 +264,33 @@ def create_subscriptions(strike, base_date):
         client.subscribe(test_put)
         subscription_count += 2
 
-    # 3. PUTs below
-    print(f"\n3. PUT Options (30 strikes below ${strike:,}):")
-    for i in range(1, 31):
+    # 3. PUTs below (increased from 30 to 70 strikes)
+    print(f"\n3. PUT Options (70 strikes below ${strike:,}):")
+    for i in range(1, 71):
         put_strike = strike - (i * strike_interval)
         put_ticker = f"AM.O:NDXP{base_date}P{put_strike:05d}000"
         client.subscribe(put_ticker)
         subscription_count += 1
 
-    # 4. PUTs above
-    print(f"\n4. PUT Options (20 strikes above ${strike:,}):")
-    for i in range(1, 21):
+    # 4. PUTs above (increased from 20 to 50 strikes)
+    print(f"\n4. PUT Options (50 strikes above ${strike:,}):")
+    for i in range(1, 51):
         put_strike = strike + (i * strike_interval)
         put_ticker = f"AM.O:NDXP{base_date}P{put_strike:05d}000"
         client.subscribe(put_ticker)
         subscription_count += 1
 
-    # 5. CALLs below
-    print(f"\n5. CALL Options (20 strikes below ${strike:,}):")
-    for i in range(1, 21):
+    # 5. CALLs below (increased from 20 to 50 strikes)
+    print(f"\n5. CALL Options (50 strikes below ${strike:,}):")
+    for i in range(1, 51):
         call_strike = strike - (i * strike_interval)
         call_ticker = f"AM.O:NDXP{base_date}C{call_strike:05d}000"
         client.subscribe(call_ticker)
         subscription_count += 1
 
-    # 6. CALLs above
-    print(f"\n6. CALL Options (20 strikes above ${strike:,}):")
-    for i in range(1, 21):
+    # 6. CALLs above (increased from 20 to 50 strikes)
+    print(f"\n6. CALL Options (50 strikes above ${strike:,}):")
+    for i in range(1, 51):
         call_strike = strike + (i * strike_interval)
         call_ticker = f"AM.O:NDXP{base_date}C{call_strike:05d}000"
         client.subscribe(call_ticker)

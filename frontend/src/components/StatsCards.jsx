@@ -37,13 +37,13 @@ function StatsCards({ stats }) {
     },
     {
       title: 'Current Strike',
-      value: stats.currentStrike ? `$${formatNumber(stats.currentStrike)}` : 'Loading...',
+      value: stats.currentStrike ? `$${formatNumber(Math.round(stats.currentStrike))}` : 'Loading...',
       icon: '🎲',
       color: 'orange'
     },
     {
       title: 'Live NDX Price',
-      value: stats.liveNdxPrice ? `$${stats.liveNdxPrice.toFixed(2)}` : 'Loading...',
+      value: stats.liveNdxPrice ? `$${formatNumber(Math.round(stats.liveNdxPrice))}` : 'Loading...',
       icon: '⚡',
       color: 'cyan'
     },

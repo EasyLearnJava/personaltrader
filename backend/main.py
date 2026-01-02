@@ -156,13 +156,14 @@ def handle_msg(msgs: List[WebSocketMessage]):
     global message_count, last_message_time
 
     message_count += len(msgs)
-    last_message_time = datetime.datetime.now()
+    cst = pytz.timezone('America/Chicago')
+    last_message_time = datetime.datetime.now(cst)
 
     if message_count % 10 == 0:
-        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        timestamp = datetime.datetime.now(cst).strftime('%H:%M:%S')
         print(f"💓 [{timestamp}] Heartbeat: Received {message_count} messages so far...")
 
-    timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+    timestamp = datetime.datetime.now(cst).strftime('%H:%M:%S')
     for m in msgs:
         if hasattr(m, 'symbol') and hasattr(m, 'volume') and hasattr(m, 'close'):
             symbol = getattr(m, 'symbol', 'Unknown')
@@ -190,7 +191,9 @@ def handle_msg(msgs: List[WebSocketMessage]):
                     strike_price = int(strike_part[:5])
                     print(f"[{timestamp}] {option_type} ${strike_price:,} | Price: ${close:.2f} | Vol: {volume} | Total Vol: {accumulated_volume}")
 
-                    full_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    # Use CST timezone for timestamps
+                    cst = pytz.timezone('America/Chicago')
+                    full_timestamp = datetime.datetime.now(cst).strftime('%Y-%m-%d %H:%M:%S')
                     formatted_strike = f"${strike_price:,}"
 
                     # Create data dictionary for storage

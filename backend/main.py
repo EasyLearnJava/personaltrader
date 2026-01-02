@@ -79,57 +79,43 @@ def store_data(data_dict):
 
 def get_current_ndx_price():
     """
-    Fetch REAL-TIME NDX index price from Polygon.io
+    Fetch current NDX index price from Polygon.io
     Returns both the actual price and the price rounded to nearest 10 (strike interval)
     """
     try:
-        # Try snapshot endpoint first (real-time data)
-        url = f"https://api.polygon.io/v2/snapshot/indices/I:NDX?apiKey={POLYGON_API_KEY}"
+        # Get today's date for the aggregates endpoint
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+        # Use today's aggregates endpoint (most recent close price)
+        url = f"https://api.polygon.io/v2/aggs/ticker/I:NDX/range/1/day/{today}/{today}?apiKey={POLYGON_API_KEY}"
         response = requests.get(url, timeout=10)
 
         if response.status_code == 200:
             data = response.json()
-            print(f"📊 Snapshot API response: {data}")
-
-            # Check different possible response structures
-            if 'ticker' in data and 'value' in data['ticker']:
-                price = data['ticker']['value']
+            if 'results' in data and len(data['results']) > 0:
+                price = data['results'][0]['c']  # Today's close price
                 strike = round(price / 10) * 10
-                print(f"✅ Fetched REAL-TIME NDX price: ${price:,.2f} → Strike: ${int(strike):,}")
+                print(f"✅ Fetched NDX price (today): ${price:,.2f} → Strike: ${int(strike):,}")
                 return int(strike), price
-            elif 'ticker' in data and 'lastTrade' in data['ticker']:
-                price = data['ticker']['lastTrade']['p']
-                strike = round(price / 10) * 10
-                print(f"✅ Fetched REAL-TIME NDX price: ${price:,.2f} → Strike: ${int(strike):,}")
-                return int(strike), price
-            else:
-                print(f"⚠️ Unexpected response structure: {data}")
-        else:
-            print(f"⚠️ Snapshot API returned status {response.status_code}: {response.text}")
 
-        # Try previous day close as fallback
+        # Fallback to previous day if today's data not available yet
         url2 = f"https://api.polygon.io/v2/aggs/ticker/I:NDX/prev?apiKey={POLYGON_API_KEY}"
         response2 = requests.get(url2, timeout=10)
 
         if response2.status_code == 200:
             data2 = response2.json()
-            print(f"📊 Previous day API response: {data2}")
             if 'results' in data2 and len(data2['results']) > 0:
-                price = data2['results'][0]['c']  # Close price
+                price = data2['results'][0]['c']  # Previous day close
                 strike = round(price / 10) * 10
-                print(f"✅ Using previous close: ${price:,.2f} → Strike: ${int(strike):,}")
+                print(f"✅ Fetched NDX price (previous day): ${price:,.2f} → Strike: ${int(strike):,}")
                 return int(strike), price
-        else:
-            print(f"⚠️ Previous day API returned status {response2.status_code}: {response2.text}")
 
     except Exception as e:
         print(f"⚠️ Error fetching NDX price: {e}")
-        import traceback
-        traceback.print_exc()
 
-    # Fallback to default
-    default_strike = 25650
-    default_price = 25650.0
+    # Last resort fallback
+    default_strike = 25200
+    default_price = 25200.0
     print(f"⚠️ Using fallback strike: ${default_strike:,}")
     return default_strike, default_price
 

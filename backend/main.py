@@ -151,7 +151,7 @@ def check_strike_and_reconnect():
         # ALWAYS reconnect every 10 minutes with latest strike
         print(f"🔄 10-minute interval reached - Triggering reconnection with latest strike...")
         current_strike = new_strike
-        live_ndx_price = new_price
+        live_ndx_price = round(new_price)  # Round to whole number
         reconnect_flag = True
 
 def initialize_websocket_client():
@@ -358,7 +358,7 @@ def run_websocket_client():
     initial_strike, initial_price = get_current_ndx_price()
     current_strike = initial_strike
     last_strike = initial_strike
-    live_ndx_price = initial_price
+    live_ndx_price = round(initial_price)  # Round to whole number
 
     # Get today's date for options
     cst = pytz.timezone('US/Central')

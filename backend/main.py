@@ -22,6 +22,8 @@ live_ndx_price = None
 next_refresh_time = None
 reconnect_flag = False
 websocket_running = False
+market_status = 'closed'  # 'open', 'closed', or 'pre-market'
+last_market_date = None  # Track the last trading day
 
 # In-memory data storage (keep last 1000 records)
 options_data = deque(maxlen=1000)
@@ -57,7 +59,8 @@ def health_check():
         'data_count': len(options_data),
         'current_strike': current_strike,
         'live_ndx_price': live_ndx_price,
-        'next_refresh_seconds': seconds_until_refresh
+        'next_refresh_seconds': seconds_until_refresh,
+        'market_status': market_status
     })
 
 def start_flask_server():
@@ -244,6 +247,25 @@ def is_market_hours():
 
     return market_open <= now <= market_close
 
+def clear_data_at_market_close():
+    """Clear all data when market closes to start fresh next day"""
+    global options_data, last_market_date, market_status
+
+    cst = pytz.timezone('America/Chicago')
+    now = datetime.datetime.now(cst)
+    current_date = now.date()
+
+    # If it's a new trading day and market is closed, clear the data
+    if last_market_date != current_date and not is_market_hours():
+        with data_lock:
+            options_data.clear()
+        last_market_date = current_date
+        market_status = 'closed'
+        print(f"🧹 Cleared data for new trading day: {current_date}")
+        return True
+
+    return False
+
 def create_subscriptions(strike, base_date):
     """Create all option subscriptions based on current strike price"""
     global client
@@ -325,7 +347,7 @@ def run_websocket_client():
     Reconnects every 10 minutes with latest real-time strike price
     Only runs during market hours: 8:29 AM - 3:01 PM CST
     """
-    global current_strike, last_strike, live_ndx_price, next_refresh_time, reconnect_flag, websocket_running, client
+    global current_strike, last_strike, live_ndx_price, next_refresh_time, reconnect_flag, websocket_running, client, market_status, last_market_date
 
     # Check if we're within market hours before starting
     if not is_market_hours():
@@ -349,10 +371,26 @@ def run_websocket_client():
 
         print(f"💤 WebSocket client will not start outside market hours")
         websocket_running = False
+        market_status = 'closed'
+        # Clear data for new trading day
+        clear_data_at_market_close()
         return
 
     retry_count = 0
     max_retries = 100
+
+    # Market is open - set status and clear old data if needed
+    market_status = 'open'
+    cst = pytz.timezone('America/Chicago')
+    today = datetime.datetime.now(cst)
+    current_date = today.date()
+
+    # Clear data if this is a new trading day
+    if last_market_date != current_date:
+        with data_lock:
+            options_data.clear()
+        last_market_date = current_date
+        print(f"🧹 Cleared data for new trading day: {current_date}")
 
     # Get initial strike price and live price
     initial_strike, initial_price = get_current_ndx_price()

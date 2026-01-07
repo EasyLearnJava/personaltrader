@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { formatNumber } from '../services/googleSheets'
 import './DataTable.css'
 
-function DataTable({ data, loading }) {
+function DataTable({ data, loading, marketStatus }) {
   const [sortField, setSortField] = useState('Timestamp')
   const [sortDirection, setSortDirection] = useState('desc')
   const [currentPage, setCurrentPage] = useState(1)
@@ -48,6 +48,20 @@ function DataTable({ data, loading }) {
   }
 
   if (data.length === 0) {
+    // Show "Market Closed" message if market is closed
+    if (marketStatus === 'closed') {
+      return (
+        <div className="table-container">
+          <div className="empty-state">
+            <span className="empty-icon">🌙</span>
+            <h3>Market Closed</h3>
+            <p>Trading has ended for today. Data will refresh when the market opens tomorrow at 8:29 AM CST.</p>
+          </div>
+        </div>
+      )
+    }
+
+    // Otherwise show waiting message
     return (
       <div className="table-container">
         <div className="empty-state">

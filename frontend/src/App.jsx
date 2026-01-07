@@ -11,6 +11,7 @@ function App() {
   const [currentStrike, setCurrentStrike] = useState(null)
   const [liveNdxPrice, setLiveNdxPrice] = useState(null)
   const [nextRefreshSeconds, setNextRefreshSeconds] = useState(null)
+  const [marketStatus, setMarketStatus] = useState('closed')
 
   const loadData = async () => {
     try {
@@ -20,12 +21,13 @@ function App() {
       setLastUpdate(new Date())
       setError(null)
 
-      // Also fetch health data (current strike, live price, refresh countdown)
+      // Also fetch health data (current strike, live price, refresh countdown, market status)
       try {
         const health = await fetchHealthStatus()
         setCurrentStrike(health.current_strike)
         setLiveNdxPrice(health.live_ndx_price)
         setNextRefreshSeconds(health.next_refresh_seconds)
+        setMarketStatus(health.market_status || 'closed')
       } catch (healthErr) {
         console.error('Error fetching health status:', healthErr)
       }
@@ -56,6 +58,7 @@ function App() {
         currentStrike={currentStrike}
         liveNdxPrice={liveNdxPrice}
         nextRefreshSeconds={nextRefreshSeconds}
+        marketStatus={marketStatus}
         onRefresh={loadData}
       />
     </div>
